@@ -79,7 +79,7 @@ LIBINPUT_CONFIG_SCROLL_2FG
 LIBINPUT_CONFIG_SCROLL_EDGE
 LIBINPUT_CONFIG_SCROLL_ON_BUTTON_DOWN
 */
-static const enum libinput_config_scroll_method scroll_method = LIBINPUT_CONFIG_SCROLL_2FG;
+static const enum libinput_config_scroll_method scroll_method = LIBINPUT_CONFIG_SCROLL_ON_BUTTON_DOWN;
 
 /* You can choose between:
 LIBINPUT_CONFIG_CLICK_METHOD_NONE
