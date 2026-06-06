@@ -1,0 +1,47 @@
+name: Build and Release dwl
+
+on:
+  push:
+    tags:
+      - 'v*' # Triggers automatically whenever you push a tag starting with 'v' (e.g., v0.4.1)
+
+permissions:
+  contents: write # Crucial permission allowing the runner to upload to GitHub Releases
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-24.04
+    
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            libwayland-dev \
+            wayland-protocols \
+            libwlroots-dev \
+            libxkbcommon-dev \
+            libpixman-1-dev \
+            libinput-dev \
+            pkg-config
+
+      - name: Compile dwl Binary
+        run: |
+          # Note: If your custom branch modifies config.mk or config.h, 
+          # make sure they are checked into your repository.
+          make
+
+      - name: Create and Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dwl # Points to the compiled 'dwl' binary file in the repository root
+          name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
