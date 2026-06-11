@@ -124,8 +124,10 @@ static const enum libinput_config_tap_button_map button_map = LIBINPUT_CONFIG_TA
 static const char *termcmd[] = { "foot", NULL };
 static const char *menucmd[] = { "mew-run", NULL };
 static const char *screenshotcmd[] = { "sh", "-c", "grim -g \"$(slurp)\" - | wl-copy", NULL };
+static const char *sobercutcmd[] = { "sh", "-c", "sudo /home/YOURUSER/sober-cut.sh", NULL };
 
 static const Key keys[] = {
+	{ WLR_MODIFIER_SHIFT,        XKB_KEY_K,          spawn,          {.v = sobercutcmd} },
 	/* Note that Shift changes certain key codes: 2 -> at, etc. */
 	/* modifier                  key                 function        argument */
 	{ MODKEY,                    XKB_KEY_p,          spawn,          {.v = menucmd} },
