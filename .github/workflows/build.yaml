@@ -28,7 +28,7 @@ jobs:
             libdrm \
             pixman \
             libseat \
-            wlroots0.19
+            wlroots-0.19
 
       - name: Checkout code
         uses: actions/checkout@v4
