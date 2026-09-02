@@ -7,7 +7,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    # Forces the job to run inside a rolling Arch Linux container environment
     container:
       image: archlinux:latest
 
@@ -15,17 +14,14 @@ jobs:
       contents: write # Required to create/update releases
 
     steps:
-    # 1. Prepare git and system prerequisites inside the container
     - name: Prepare Container Environment
       run: |
         pacman -Syu --noconfirm
         pacman -S --noconfirm git patch
 
-    # 2. Pull down your repository code
     - name: Checkout code
       uses: actions/checkout@v4
 
-    # 3. Apply custom patches
     - name: Apply Patches
       run: |
         if [ -d "patches" ] && [ "$(ls -A patches)" ]; then
@@ -38,7 +34,7 @@ jobs:
           echo "No patches found or patches directory does not exist. Skipping."
         fi
 
-    # 4. Install cutting-edge packages (wlroots 0.19+, fcft, pixman natively bundled)
+    # Fixed Step: Corrected package names for the Arch environment
     - name: Install Dependencies
       run: |
         pacman -S --noconfirm \
@@ -46,26 +42,30 @@ jobs:
           pkgconf \
           libinput \
           wayland \
-          xorg-xkbcommon \
+          libxkbcommon \
           wayland-protocols \
-          wlroots \
+          wlroots0.19 \
           xorg-xwayland \
           libxcb \
           xcb-util-wm \
           pixman \
           fcft
 
-    # 5. Enable XWayland in your local build settings
+    # Fix: Arch links versioned wlroots as wlroots-0.19.pc, but Makefile might query wlroots.pc
+    - name: Link wlroots pkgconfig if required
+      run: |
+        if [ ! -f /usr/lib/pkgconfig/wlroots.pc ] && [ -f /usr/lib/pkgconfig/wlroots-0.19.pc ]; then
+          ln -s /usr/lib/pkgconfig/wlroots-0.19.pc /usr/lib/pkgconfig/wlroots.pc
+        fi
+
     - name: Enable XWayland
       run: |
         sed -i 's/#XWAYLAND/XWAYLAND/g' config.mk
         sed -i 's/#XLIBS/XLIBS/g' config.mk
 
-    # 6. Compile the binary using standard modern wayland-scanner arguments
     - name: Run Make
       run: make
 
-    # 7. Upload to your rolling repository release assets
     - name: Update Latest Release
       uses: softprops/action-gh-release@v2
       with:
