@@ -7,13 +7,25 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # Forces the job to run inside a rolling Arch Linux container environment
+    container:
+      image: archlinux:latest
+
     permissions:
       contents: write # Required to create/update releases
 
     steps:
+    # 1. Prepare git and system prerequisites inside the container
+    - name: Prepare Container Environment
+      run: |
+        pacman -Syu --noconfirm
+        pacman -S --noconfirm git patch
+
+    # 2. Pull down your repository code
     - name: Checkout code
       uses: actions/checkout@v4
 
+    # 3. Apply custom patches
     - name: Apply Patches
       run: |
         if [ -d "patches" ] && [ "$(ls -A patches)" ]; then
@@ -26,43 +38,41 @@ jobs:
           echo "No patches found or patches directory does not exist. Skipping."
         fi
 
+    # 4. Install cutting-edge packages (wlroots 0.19+, fcft, pixman natively bundled)
     - name: Install Dependencies
       run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          build-essential \
-          pkg-config \
-          libinput-dev \
-          libwayland-dev \
-          libxkbcommon-dev \
+        pacman -S --noconfirm \
+          base-devel \
+          pkgconf \
+          libinput \
+          wayland \
+          xorg-xkbcommon \
           wayland-protocols \
-          libxcb1-dev \
-          libxcb-icccm4-dev \
-          libxcb-render-util0-dev \
-          libwlroots-dev \
-          xwayland
+          wlroots \
+          xorg-xwayland \
+          libxcb \
+          xcb-util-wm \
+          pixman \
+          fcft
 
+    # 5. Enable XWayland in your local build settings
     - name: Enable XWayland
       run: |
         sed -i 's/#XWAYLAND/XWAYLAND/g' config.mk
         sed -i 's/#XLIBS/XLIBS/g' config.mk
 
-    # Fixed Step: Fixes the wayland-scanner parameter error on Ubuntu environments
-    - name: Patch Makefile for wayland-scanner compatibility
-      run: |
-        sed -i 's/enum-header/server-header/g' Makefile
-
+    # 6. Compile the binary using standard modern wayland-scanner arguments
     - name: Run Make
       run: make
 
-    # Creates or updates a release called "Latest Build" and replaces the binary
+    # 7. Upload to your rolling repository release assets
     - name: Update Latest Release
       uses: softprops/action-gh-release@v2
       with:
         name: "Latest Build"
         tag_name: "latest"
         files: dwl
-        prerelease: true # Marks it as a rolling/pre-release build
+        prerelease: true
         overwrite: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
