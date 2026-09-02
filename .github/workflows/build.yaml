@@ -7,32 +7,33 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container:
-      image: archlinux:latest
+    container: 
+      image: ghcr.io/djpohly/dwl:build
 
     permissions:
       contents: write
 
     steps:
-    - name: Install Dependencies & Build
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Apply Patches
       run: |
-        pacman -Syu --noconfirm
-        pacman -S --noconfirm base-devel git pkgconf libinput wayland \
-          libxkbcommon wayland-protocols xorg-xwayland libxcb \
-          xcb-util-wm pixman fcft tllist wlroots
-        
-        # Checkout and build
-        git clone ${{ github.server_url }}/${{ github.repository }} .
-        
-        # Apply patches if any
-        [ -d "patches" ] && for p in patches/*; do patch -p1 < "$p"; done
-        
-        # Build - using whatever wlroots version is in the repo
-        sed -i 's/#XWAYLAND/XWAYLAND/g' config.mk
-        sed -i 's/#XLIBS/XLIBS/g' config.mk
+        if [ -d "patches" ] && [ "$(ls -A patches 2>/dev/null)" ]; then
+          for patch_file in patches/*; do
+            echo "Applying $patch_file..."
+            patch -p1 < "$patch_file"
+          done
+        fi
+
+    - name: Build
+      run: |
+        make
+        sed -i 's/wlroots-0.20/wlroots/g' config.mk 2>/dev/null || true
+        sed -i 's/#XWAYLAND/XWAYLAND/g' config.mk 2>/dev/null || true
         make
 
-    - name: Create Release
+    - name: Update Latest Release
       uses: softprops/action-gh-release@v2
       with:
         name: "Latest Build"
