@@ -26,7 +26,6 @@ jobs:
           echo "No patches found or patches directory does not exist. Skipping."
         fi
 
-    # Fixed Step: Dropped libxcb-errors-dev to pass Ubuntu's environment check
     - name: Install Dependencies
       run: |
         sudo apt-get update
@@ -47,6 +46,11 @@ jobs:
       run: |
         sed -i 's/#XWAYLAND/XWAYLAND/g' config.mk
         sed -i 's/#XLIBS/XLIBS/g' config.mk
+
+    # Fixed Step: Fixes the wayland-scanner parameter error on Ubuntu environments
+    - name: Patch Makefile for wayland-scanner compatibility
+      run: |
+        sed -i 's/enum-header/server-header/g' Makefile
 
     - name: Run Make
       run: make
