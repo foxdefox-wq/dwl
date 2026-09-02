@@ -14,7 +14,6 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    # New step: Loops through the patches/ directory and applies each patch file
     - name: Apply Patches
       run: |
         if [ -d "patches" ] && [ "$(ls -A patches)" ]; then
@@ -27,8 +26,12 @@ jobs:
           echo "No patches found or patches directory does not exist. Skipping."
         fi
 
+    # Fixed Step: Enables the universe repository and updates package names
     - name: Install Dependencies
       run: |
+        sudo apt-get update
+        sudo apt-get install -y software-properties-common
+        sudo apt-add-repository -y universe
         sudo apt-get update
         sudo apt-get install -y \
           build-essential \
@@ -41,7 +44,7 @@ jobs:
           libxcb-icccm4-dev \
           libxcb-render-util0-dev \
           libxcb-errors-dev \
-          wlroots \
+          libwlroots-dev \
           xwayland
 
     - name: Enable XWayland
