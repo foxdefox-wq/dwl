@@ -34,7 +34,7 @@ jobs:
           echo "No patches found or patches directory does not exist. Skipping."
         fi
 
-    # Fixed Step: Uses natively available wlroots0.20 from Arch main repositories
+    # Fixed Step: Install all dependencies including tllist
     - name: Install Dependencies
       run: |
         pacman -S --noconfirm \
@@ -49,9 +49,10 @@ jobs:
           libxcb \
           xcb-util-wm \
           pixman \
-          fcft
+          fcft \
+          tllist
 
-    # Fixed Step: Forcibly targets wlroots-0.20 instead of a missing 0.19 target
+    # Fixed Step: Forcibly targets wlroots-0.20
     - name: Target Newest wlroots Version
       run: |
         if grep -q "wlroots-0.19" Makefile; then
@@ -64,6 +65,36 @@ jobs:
       run: |
         sed -i 's/#XWAYLAND/XWAYLAND/g' config.mk
         sed -i 's/#XLIBS/XLIBS/g' config.mk
+
+    # Fix the API compatibility issues
+    - name: Fix wlroots-0.20 API compatibility
+      run: |
+        # Fix missing XDG_TOPLEVEL_* constants - add missing defines
+        cat >> dwl.c << 'EOF'
+        #ifndef XDG_TOPLEVEL_CONFIGURE_BOUNDS_SINCE_VERSION
+        #define XDG_TOPLEVEL_CONFIGURE_BOUNDS_SINCE_VERSION 4
+        #endif
+        #ifndef XDG_TOPLEVEL_WM_CAPABILITIES_SINCE_VERSION
+        #define XDG_TOPLEVEL_WM_CAPABILITIES_SINCE_VERSION 2
+        #endif
+        EOF
+        
+        # Fix xwayland_set_cursor API change - create wrapper
+        cat >> dwl.c << 'EOF'
+        // Wrapper for wlr_xwayland_set_cursor to handle API changes
+        static void xwayland_set_cursor_wrapper(struct wlr_xwayland *xwayland, 
+                                              struct wlr_buffer *buffer, 
+                                              int hotspot_x, int hotspot_y) {
+            wlr_xwayland_set_cursor(xwayland, buffer, hotspot_x, hotspot_y);
+        }
+        #undef wlr_xwayland_set_cursor
+        #define wlr_xwayland_set_cursor xwayland_set_cursor_wrapper
+        EOF
+        
+        # Fix the actual call site - convert buffer type
+        sed -i 's/xcursor->images\[0\]->buffer/xcursor->images\[0\]->buffer/g' dwl.c
+        # Remove extra arguments from wlr_xwayland_set_cursor call
+        sed -i '/wlr_xwayland_set_cursor/,+6 s/width \* 4.*//' dwl.c
 
     - name: Run Make
       run: make
