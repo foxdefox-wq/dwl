@@ -1,0 +1,65 @@
+name: Build
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Required to create/update releases
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    # New step: Loops through the patches/ directory and applies each patch file
+    - name: Apply Patches
+      run: |
+        if [ -d "patches" ] && [ "$(ls -A patches)" ]; then
+          echo "Applying patches..."
+          for patch_file in patches/*; do
+            echo "Applying $patch_file..."
+            patch -p1 < "$patch_file"
+          done
+        else
+          echo "No patches found or patches directory does not exist. Skipping."
+        fi
+
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          pkg-config \
+          libinput-dev \
+          libwayland-dev \
+          libxkbcommon-dev \
+          wayland-protocols \
+          libxcb1-dev \
+          libxcb-icccm4-dev \
+          libxcb-render-util0-dev \
+          libxcb-errors-dev \
+          wlroots \
+          xwayland
+
+    - name: Enable XWayland
+      run: |
+        sed -i 's/#XWAYLAND/XWAYLAND/g' config.mk
+        sed -i 's/#XLIBS/XLIBS/g' config.mk
+
+    - name: Run Make
+      run: make
+
+    # Creates or updates a release called "Latest Build" and replaces the binary
+    - name: Update Latest Release
+      uses: softprops/action-gh-release@v2
+      with:
+        name: "Latest Build"
+        tag_name: "latest"
+        files: dwl
+        prerelease: true # Marks it as a rolling/pre-release build
+        overwrite: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
