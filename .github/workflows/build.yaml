@@ -34,7 +34,7 @@ jobs:
           echo "No patches found or patches directory does not exist. Skipping."
         fi
 
-    # Fixed Step: Corrected package names for the Arch environment
+    # Fixed Step: Uses natively available wlroots0.20 from Arch main repositories
     - name: Install Dependencies
       run: |
         pacman -S --noconfirm \
@@ -44,18 +44,20 @@ jobs:
           wayland \
           libxkbcommon \
           wayland-protocols \
-          wlroots0.19 \
+          wlroots0.20 \
           xorg-xwayland \
           libxcb \
           xcb-util-wm \
           pixman \
           fcft
 
-    # Fix: Arch links versioned wlroots as wlroots-0.19.pc, but Makefile might query wlroots.pc
-    - name: Link wlroots pkgconfig if required
+    # Fixed Step: Forcibly targets wlroots-0.20 instead of a missing 0.19 target
+    - name: Target Newest wlroots Version
       run: |
-        if [ ! -f /usr/lib/pkgconfig/wlroots.pc ] && [ -f /usr/lib/pkgconfig/wlroots-0.19.pc ]; then
-          ln -s /usr/lib/pkgconfig/wlroots-0.19.pc /usr/lib/pkgconfig/wlroots.pc
+        if grep -q "wlroots-0.19" Makefile; then
+          sed -i 's/wlroots-0.19/wlroots-0.20/g' Makefile
+        elif grep -q "wlroots-0.19" config.mk; then
+          sed -i 's/wlroots-0.19/wlroots-0.20/g' config.mk
         fi
 
     - name: Enable XWayland
