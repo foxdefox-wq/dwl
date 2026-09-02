@@ -11,93 +11,65 @@ jobs:
       image: archlinux:latest
 
     permissions:
-      contents: write # Required to create/update releases
+      contents: write
 
     steps:
-    - name: Prepare Container Environment
+    - name: Install Dependencies
       run: |
         pacman -Syu --noconfirm
-        pacman -S --noconfirm git patch
+        pacman -S --noconfirm \
+          base-devel \
+          git \
+          pkgconf \
+          libinput \
+          wayland \
+          libxkbcommon \
+          wayland-protocols \
+          xorg-xwayland \
+          libxcb \
+          xcb-util-wm \
+          pixman \
+          fcft \
+          tllist \
+          ninja \
+          cmake \
+          meson
+
+    - name: Build wlroots-0.19 from source
+      run: |
+        git clone --depth 1 --branch 0.19.0 https://gitlab.freedesktop.org/wlroots/wlroots.git
+        cd wlroots
+        meson setup build -Dexamples=false -Dxwayland=enabled -Dxcb-errors=disabled
+        ninja -C build
+        ninja -C build install
+        cd ..
+        echo "PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH" >> $GITHUB_ENV
 
     - name: Checkout code
       uses: actions/checkout@v4
 
     - name: Apply Patches
       run: |
-        if [ -d "patches" ] && [ "$(ls -A patches)" ]; then
-          echo "Applying patches..."
-          for patch_file in patches/*; do
-            echo "Applying $patch_file..."
-            patch -p1 < "$patch_file"
-          done
-        else
-          echo "No patches found or patches directory does not exist. Skipping."
-        fi
+        [ -d "patches" ] && [ "$(ls -A patches 2>/dev/null)" ] && \
+          for patch_file in patches/*; do patch -p1 < "$patch_file"; done || \
+          echo "No patches found"
 
-    # Fixed Step: Install all dependencies including tllist
-    - name: Install Dependencies
+    - name: Configure Build
       run: |
-        pacman -S --noconfirm \
-          base-devel \
-          pkgconf \
-          libinput \
-          wayland \
-          libxkbcommon \
-          wayland-protocols \
-          wlroots0.20 \
-          xorg-xwayland \
-          libxcb \
-          xcb-util-wm \
-          pixman \
-          fcft \
-          tllist
-
-    # Fixed Step: Forcibly targets wlroots-0.20
-    - name: Target Newest wlroots Version
-      run: |
-        if grep -q "wlroots-0.19" Makefile; then
-          sed -i 's/wlroots-0.19/wlroots-0.20/g' Makefile
-        elif grep -q "wlroots-0.19" config.mk; then
-          sed -i 's/wlroots-0.19/wlroots-0.20/g' config.mk
-        fi
-
-    - name: Enable XWayland
-      run: |
-        sed -i 's/#XWAYLAND/XWAYLAND/g' config.mk
-        sed -i 's/#XLIBS/XLIBS/g' config.mk
-
-    # Fix the API compatibility issues
-    - name: Fix wlroots-0.20 API compatibility
-      run: |
-        # Fix missing XDG_TOPLEVEL_* constants - add missing defines
-        cat >> dwl.c << 'EOF'
-        #ifndef XDG_TOPLEVEL_CONFIGURE_BOUNDS_SINCE_VERSION
-        #define XDG_TOPLEVEL_CONFIGURE_BOUNDS_SINCE_VERSION 4
-        #endif
-        #ifndef XDG_TOPLEVEL_WM_CAPABILITIES_SINCE_VERSION
-        #define XDG_TOPLEVEL_WM_CAPABILITIES_SINCE_VERSION 2
-        #endif
-        EOF
+        # Use wlroots from /usr/local (where we installed it)
+        sed -i 's|wlroots-0.20|wlroots|g' config.mk 2>/dev/null || true
+        sed -i 's|wlroots-0.19|wlroots|g' config.mk 2>/dev/null || true
+        sed -i 's|wlroots-0.20|wlroots|g' Makefile 2>/dev/null || true
+        sed -i 's|wlroots-0.19|wlroots|g' Makefile 2>/dev/null || true
         
-        # Fix xwayland_set_cursor API change - create wrapper
-        cat >> dwl.c << 'EOF'
-        // Wrapper for wlr_xwayland_set_cursor to handle API changes
-        static void xwayland_set_cursor_wrapper(struct wlr_xwayland *xwayland, 
-                                              struct wlr_buffer *buffer, 
-                                              int hotspot_x, int hotspot_y) {
-            wlr_xwayland_set_cursor(xwayland, buffer, hotspot_x, hotspot_y);
-        }
-        #undef wlr_xwayland_set_cursor
-        #define wlr_xwayland_set_cursor xwayland_set_cursor_wrapper
-        EOF
-        
-        # Fix the actual call site - convert buffer type
-        sed -i 's/xcursor->images\[0\]->buffer/xcursor->images\[0\]->buffer/g' dwl.c
-        # Remove extra arguments from wlr_xwayland_set_cursor call
-        sed -i '/wlr_xwayland_set_cursor/,+6 s/width \* 4.*//' dwl.c
+        # Enable XWayland if needed
+        sed -i 's/#XWAYLAND/XWAYLAND/g' config.mk 2>/dev/null || true
+        sed -i 's/#XLIBS/XLIBS/g' config.mk 2>/dev/null || true
 
-    - name: Run Make
-      run: make
+    - name: Build dwl
+      run: |
+        export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH
+        make
 
     - name: Update Latest Release
       uses: softprops/action-gh-release@v2
